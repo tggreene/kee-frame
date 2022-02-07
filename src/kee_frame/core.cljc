@@ -2,12 +2,9 @@
   (:require [kee-frame.legacy :as legacy]
             [kee-frame.state :as state]
             [kee-frame.router :as router]
-            [re-frame.core :as rf :refer [console]]
             [kee-frame.log :as log]
-            [kee-frame.spec :as spec]
-            [re-frame.interop :as interop]
-            [clojure.spec.alpha :as s]
-            [expound.alpha :as e]))
+            re-chain.core
+            [re-frame.interop :as interop]))
 
 (def valid-option-key? #{:router :hash-routing? :routes :process-route :debug? :debug-config
                          :chain-links :app-db-spec :root-component :initial-db :log-spec-error
@@ -19,6 +16,9 @@
   (->> options
        (filter (fn [[k]] (not (valid-option-key? k))))
        (into {})))
+
+(def validate-start-options! (constantly nil))
+(def validate-controller! (constantly nil))
 
 (defn start!
   "Starts your client application with the specified `options`.
@@ -38,12 +38,10 @@
   ```"
   [options]
   (log/init! (:log options))
-  (when-not (s/valid? ::spec/start-options options)
-    (e/expound ::spec/start-options options)
-    (throw (ex-info "Invalid options" (s/explain-data ::spec/start-options options))))
+  (validate-start-options! options)
   (let [extras (extra-options options)]
     (when (seq extras)
-      (throw (ex-info (str "Uknown startup options. Valid keys are " valid-option-key?) extras))))
+      (throw (ex-info (str "Unknown startup options. Valid keys are " valid-option-key?) extras))))
   (router/start! options))
 
 (def reg-chain legacy/reg-chain)
@@ -85,9 +83,7 @@
   can be omitted."
   [id controller]
   (let [controller (assoc controller :id id)]
-    (when-not (s/valid? ::spec/controller controller)
-      (e/expound ::spec/controller controller)
-      (throw (ex-info "Invalid controller" (s/explain-data ::spec/controller controller))))
+    (validate-controller! controller)
     (swap! state/controllers (fn [controllers]
                                (let [ids (map :id controllers)]
                                  (if (some #{id} ids)

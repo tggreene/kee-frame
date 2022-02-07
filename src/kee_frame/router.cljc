@@ -1,24 +1,22 @@
 (ns ^:no-doc kee-frame.router
   (:require [kee-frame.interop :as interop]
-            [re-frame.core :as rf :refer [console]]
+            [re-frame.core :as rf]
             [re-chain.core :as chain]
             [kee-frame.event-logger :as event-logger]
             [kee-frame.api :as api :refer [dispatch-current! navigate! url->data data->url]]
-            [kee-frame.interop :as interop]
-            [kee-frame.spec :as spec]
             [kee-frame.state :as state]
             [kee-frame.scroll :as scroll]
             [kee-frame.controller :as controller]
             [reitit.core :as reitit]
             [clojure.string :as str]
-            [clojure.spec.alpha :as s]
-            [expound.alpha :as e]
-            [re-frame.core :as f]
             [clojure.set :as set]))
 
 (def default-chain-links [{:effect-present? (fn [effects] (:http-xhrio effects))
                            :get-dispatch    (fn [effects] (get-in effects [:http-xhrio :on-success]))
                            :set-dispatch    (fn [effects dispatch] (assoc-in effects [:http-xhrio :on-success] dispatch))}])
+
+(def start-spec-interceptor! (constantly nil))
+(def validate-route-data! (constantly nil))
 
 (defn url [data]
   (when-not @state/router
@@ -36,12 +34,6 @@
           (rf/console :error "No match found for path " path)
           (rf/console :groupEnd)))))
 
-(s/def ::reitit-route-data (s/cat :route-name keyword? :path-params (s/* (s/map-of keyword? any?))))
-
-(defn assert-route-data [data]
-  (when-not (s/valid? ::reitit-route-data data)
-    (e/expound ::reitit-route-data data)
-    (throw (ex-info "Bad route data input" (s/explain-data ::reitit-route-data data)))))
 
 (defn url-not-found [routes data]
   (throw (ex-info "Could not find url for the provided data"
@@ -73,7 +65,7 @@
 (defrecord ReititRouter [routes hash? not-found]
   api/Router
   (data->url [_ data]
-    (assert-route-data data)
+    (validate-route-data! data)
     (or (match-data routes data hash?)
         (url-not-found routes data)))
   (url->data [_ url]
@@ -112,10 +104,10 @@
 
 (defn deprecations [{:keys [debug? debug-config]}]
   (when (not (nil? debug?))
-    (console :warn "Kee-frame option :debug? has been removed. Configure timbre logger through :log option instead. Example: {:level :debug :ns-blacklist [\"kee-frame.event-logger\"]}"))
+    (rf/console :warn "Kee-frame option :debug? has been removed. Configure timbre logger through :log option instead. Example: {:level :debug :ns-blacklist [\"kee-frame.event-logger\"]}"))
 
   (when (not (nil? debug-config))
-    (console :warn "Kee-frame option :debug-config has been removed. Configure timbre logger through :log option instead. Example: {:level :debug :ns-blacklist [\"kee-frame.event-logger\"]}")))
+    (rf/console :warn "Kee-frame option :debug-config has been removed. Configure timbre logger through :log option instead. Example: {:level :debug :ns-blacklist [\"kee-frame.event-logger\"]}")))
 
 (defn start! [{:keys [routes initial-db router app-db-spec root-component chain-links
                       screen scroll global-interceptors log-spec-error]
@@ -123,9 +115,9 @@
                :as   config}]
   (deprecations config)
   (when app-db-spec
-    (f/reg-global-interceptor (spec/spec-interceptor app-db-spec log-spec-error)))
+    (start-spec-interceptor! app-db-spec log-spec-error))
   (doseq [i global-interceptors]
-    (f/reg-global-interceptor i))
+    (rf/reg-global-interceptor i))
   (chain/configure! (concat default-chain-links
                             chain-links))
 

@@ -1,6 +1,7 @@
 (ns kee-frame.controller-test
   (:require [clojure.test :refer [deftest testing is]]
-            [kee-frame.controller :as c]))
+            [kee-frame.controller :as c]
+            [kee-frame.spec :as spec]))
 
 (deftest compact-syntax
   (testing "Can start and stop"
@@ -39,6 +40,7 @@
              {:handler :some-page}))))))
 
 (deftest invalid-start-return
+  (spec/initialize-spec-validation!)
   (is (thrown-with-msg?
        #?(:clj  clojure.lang.ExceptionInfo
           :cljs js/Error)
@@ -50,4 +52,5 @@
                                   {}
                                   {:handler :some-page})
             :dispatch-n
-            doall))))
+            doall)))
+  (spec/reset-spec-validation!))

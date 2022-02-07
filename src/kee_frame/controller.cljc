@@ -5,9 +5,6 @@
    #?(:clj
       [clojure.core.match :refer [match]])
    [kee-frame.state :as state]
-   [kee-frame.spec :as spec]
-   [clojure.spec.alpha :as s]
-   [expound.alpha :as e]
    [taoensso.timbre :as log]
    [re-frame.core :as rf]))
 
@@ -16,15 +13,13 @@
     (vector? params) (get-in route params)
     (ifn? params) (params route)))
 
+(def validate-dispatch! (constantly nil))
+
 (defn validate-and-dispatch! [dispatch]
   (when dispatch
     (log/debug "Dispatch returned from controller function " dispatch)
-    (do
-      (when-not (s/valid? ::spec/event-vector dispatch)
-        (e/expound ::spec/event-vector dispatch)
-        (throw (ex-info "Invalid dispatch value"
-                        (s/explain-data ::spec/event-vector dispatch))))
-      dispatch)))
+    (validate-dispatch! dispatch)
+    dispatch))
 
 (defn stop-controller [ctx {:keys [stop] :as controller}]
   (log/debug {:type       :controller-stop

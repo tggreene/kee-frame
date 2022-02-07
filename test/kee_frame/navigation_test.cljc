@@ -3,7 +3,8 @@
             [kee-frame.core :as k]
             [re-frame.core :as rf]
             [day8.re-frame.test :as rf-test]
-            [kee-frame.state :as state]))
+            [kee-frame.state :as state]
+            [kee-frame.spec :as spec]))
 
 (def routes [["/" :index]
              ["/testing/:id" :some-route]])
@@ -28,18 +29,23 @@
     (state/reset-state!)
     (k/reg-controller :test-controller {:params (constantly true)
                                         :start  (fn [_ _] "This is not cool")})
+    (spec/initialize-spec-validation!)
     (rf-test/run-test-sync
      (is (thrown-with-msg?
           #?(:clj  clojure.lang.ExceptionInfo
              :cljs js/Error)
           #"Invalid dispatch value"
-          (k/start! {:routes routes}))))))
+          (k/start! {:routes routes}))))
+    (spec/reset-spec-validation!)))
 
 (deftest routing-syntax
+  (spec/initialize-spec-validation!)
   (testing "Regression for changed router api"
     (state/reset-state!)
     (k/start! {:routes routes})
-    (is (thrown?
+    (is (thrown-with-msg?
          #?(:clj  clojure.lang.ExceptionInfo
             :cljs js/Error)
-         (k/path-for :some-route)))))
+         #"Bad route data input"
+         (k/path-for :some-route))))
+  (spec/reset-spec-validation!))
